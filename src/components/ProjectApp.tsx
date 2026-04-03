@@ -49,15 +49,15 @@ const TABS = [
   { id: 'github',    label: 'Dev',      icon: '⌥'  },
   { id: 'tchat',     label: 'Chat',     icon: '💬' },
   { id: 'ask',       label: 'Ask',      icon: '✦'  },
-  { id: 'import',    label: 'Import',   icon: '📥' },
   { id: 'settings',  label: 'Setup',    icon: '⚙️' },
+  { id: 'import',    label: 'Import',   icon: '📥' },
 ]
 
 const FULL_LABELS: Record<string, string> = {
   gdd: 'Design Doc', decisions: 'Decision Log', clarity: 'Clarity Tools',
   budget: 'Budget', investors: 'Investors', assets: 'Asset Tracker',
   costs: 'Cost Tracker', pitch: 'Pitch Suite', github: 'Dev Feed',
-  tchat: 'Team Chat', ask: 'Ask Codex', import: 'Smart Import', settings: 'Settings',
+  tchat: 'Team Chat', ask: 'Ask Codex', settings: 'Settings', import: 'Smart Import',
 }
 
 // ── Main Component ─────────────────────────────────────────────────
@@ -102,10 +102,10 @@ export default function ProjectApp({ project, currentUser, initialData }: {
   const [aiModal, setAiModal] = useState<{ prompt: string } | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [showNotifs, setShowNotifs] = useState(false)
+  const [importStep, setImportStep] = useState(1)
   const [importRawText, setImportRawText] = useState('')
   const [importLoading, setImportLoading] = useState(false)
   const [importError, setImportError] = useState('')
-  const [importStep, setImportStep] = useState(1)
   const [loadKey, setLoadKey] = useState(0)
   const [chatInput, setChatInput] = useState('')
   const [askInput, setAskInput] = useState('')
@@ -265,7 +265,7 @@ export default function ProjectApp({ project, currentUser, initialData }: {
       considering: 'bg-[rgba(251,191,36,0.12)] text-yellow-400',
       someday: 'bg-[rgba(85,85,95,0.15)] text-[var(--muted)]',
     }
-    return (<span className={`inline-flex items-center px-2 py-0.5 rounded-full font-mono text-[9px] tracking-wider uppercase ${colors[s] ?? colors.planned}`}>{s}</span>)
+    return <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-mono text-[9px] tracking-wider uppercase ${colors[s] ?? colors.planned}`}>{s}</span>
   }
 
   // ── Shared input/button classes ───────────────────────────────────
@@ -306,7 +306,8 @@ export default function ProjectApp({ project, currentUser, initialData }: {
             { label: 'Finance', tabs: ['budget', 'investors', 'assets', 'costs'] },
             { label: 'Investor', tabs: ['pitch'] },
             { label: 'Dev', tabs: ['github', 'tchat'] },
-            { label: 'AI', tabs: ['ask', 'import', 'settings'] },
+            { label: 'AI', tabs: ['ask', 'settings'] },
+            { label: 'Project', tabs: ['import'] },
           ].map(group => (
             <div key={group.label}>
               <div className="px-4 pt-3 pb-1 font-mono text-[9px] tracking-widest uppercase text-[var(--muted)]">{group.label}</div>
@@ -358,7 +359,7 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                 {template.icon} Template
               </button>
             )}
-            <button className={btnAccent} onClick={() => setTab('import')}>📥 Import</button>
+            <button className={btnAccent} onClick={() => setTab('import')}>+ Import</button>
             {/* Notification bell */}
             <div className="relative">
               <button onClick={() => setShowNotifs(v => !v)} className="relative text-[var(--muted)] hover:text-[var(--text)] transition-colors p-1">
@@ -781,9 +782,16 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                   const texts: string[] = []
                   for (const file of Array.from(files)) {
                     const text = await file.text()
-                    texts.push(`--- ${file.name} ---\n${text}`)
+                    texts.push(`--- ${file.name} ---
+${text}`)
                   }
-                  setImportRawText(p => p ? p + '\n\n' + texts.join('\n\n') : texts.join('\n\n'))
+                  setImportRawText(p => p ? p + '
+
+' + texts.join('
+
+') : texts.join('
+
+'))
                 }}
               >
                 <div className="text-3xl mb-2">📎</div>
@@ -802,12 +810,19 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                     for (const file of Array.from(files)) {
                       try {
                         const text = await file.text()
-                    texts.push(`--- ${file.name} ---\n${text}`)
+                        texts.push(`--- ${file.name} ---
+${text}`)
                       } catch {
                         texts.push(`[Could not read ${file.name}]`)
                       }
                     }
-                    setImportRawText(p => p ? p + '\n\n' + texts.join('\n\n') : texts.join('\n\n'))
+                    setImportRawText(p => p ? p + '
+
+' + texts.join('
+
+') : texts.join('
+
+'))
                   }}
                 />
               </div>
@@ -844,7 +859,34 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                   setImportLoading(true)
                   setImportError('')
                   try {
-                    const prompt = "You are a data extraction assistant for a game project management tool. Extract structured data from the following documents and return ONLY a valid JSON object with these fields (omit any field if not found):\n\n{\"projectName\": \"string\", \"genre\": \"shooter|rpg|strategy|narrative|platformer|puzzle|simulation|horror|blank\", \"gdd\": {\"premise\": \"string\", \"coreMechanics\": \"string\", \"playerFantasy\": \"string\", \"setting\": \"string\", \"progression\": \"string\", \"market\": \"string\", \"tech\": \"string\", \"scope\": \"string\"}, \"decisions\": [{\"section\": \"string\", \"chose\": \"string\", \"rejected\": \"string\"}], \"tasks\": [{\"text\": \"string\", \"period\": \"daily|weekly|monthly|yearly\", \"priority\": \"high|medium|low\"}], \"milestones\": [{\"name\": \"string\", \"status\": \"planned|active|done\", \"progress\": 0, \"target_date\": \"string\"}], \"features\": [{\"name\": \"string\", \"note\": \"string\", \"status\": \"planned|active|done|cut\"}], \"risks\": [{\"name\": \"string\", \"severity\": \"high|medium|low\", \"note\": \"string\", \"mitigation\": \"string\"}], \"costs\": [{\"name\": \"string\", \"category\": \"string\", \"amount\": 0, \"cost_type\": \"monthly|one-time\"}], \"fundingTarget\": 0}\n\nReturn ONLY the JSON object. No explanation, no markdown.\n\nDOCUMENTS:\n" + importRawText
+                    const prompt = `You are a data extraction assistant for a game project management tool. Extract structured data from the following documents and return ONLY a valid JSON object with these fields (omit any field if not found):
+
+{
+  "projectName": "string",
+  "genre": "shooter|rpg|strategy|narrative|platformer|puzzle|simulation|horror|blank",
+  "gdd": {
+    "premise": "string",
+    "coreMechanics": "string",
+    "playerFantasy": "string",
+    "setting": "string",
+    "progression": "string",
+    "market": "string",
+    "tech": "string",
+    "scope": "string"
+  },
+  "decisions": [{"section": "string", "chose": "string", "rejected": "string"}],
+  "tasks": [{"text": "string", "period": "daily|weekly|monthly|yearly", "priority": "high|medium|low"}],
+  "milestones": [{"name": "string", "status": "planned|active|done", "progress": 0, "target_date": "string"}],
+  "features": [{"name": "string", "note": "string", "status": "planned|active|done|cut"}],
+  "risks": [{"name": "string", "severity": "high|medium|low", "note": "string", "mitigation": "string"}],
+  "costs": [{"name": "string", "category": "string", "amount": 0, "cost_type": "monthly|one-time"}],
+  "fundingTarget": 0
+}
+
+Return ONLY the JSON object. No explanation, no markdown.
+
+DOCUMENTS:
+${importRawText}`
 
                     await navigator.clipboard.writeText(prompt).catch(() => {})
                     setAiModal({ prompt })
@@ -868,7 +910,11 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                 <div className="font-mono text-[9px] uppercase tracking-widest text-[var(--muted)] mb-2">Step 2 — Paste the JSON result from your AI</div>
                 <textarea
                   className={inputCls + ' resize-none min-h-[120px] font-mono text-xs'}
-                  placeholder={'{ "projectName": "...", "genre": "shooter", "gdd": {...} }'}
+                  placeholder={'{
+  "projectName": "...",
+  "genre": "shooter",
+  "gdd": {...}
+}'}
                   onChange={async (e) => {
                     const val = e.target.value.trim()
                     if (!val.startsWith('{')) return

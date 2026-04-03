@@ -15,7 +15,10 @@
     "@supabase/supabase-js": "^2.43.0",
     "@supabase/ssr": "^0.3.0",
     "lucide-react": "^0.383.0",
-    "clsx": "^2.1.1"
+    "clsx": "^2.1.1",
+    "mammoth": "^1.7.1",
+    "pdf-parse": "^1.1.1",
+    "@types/pdf-parse": "^1.1.4"
   },
   "devDependencies": {
     "@types/node": "^20",
