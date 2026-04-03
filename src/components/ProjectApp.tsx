@@ -51,14 +51,13 @@ const TABS = [
   { id: 'ask',       label: 'Ask',      icon: '✦'  },
   { id: 'import',    label: 'Import',   icon: '📥' },
   { id: 'settings',  label: 'Setup',    icon: '⚙️' },
-  { id: 'import',    label: 'Import',   icon: '📥' },
 ]
 
 const FULL_LABELS: Record<string, string> = {
   gdd: 'Design Doc', decisions: 'Decision Log', clarity: 'Clarity Tools',
   budget: 'Budget', investors: 'Investors', assets: 'Asset Tracker',
   costs: 'Cost Tracker', pitch: 'Pitch Suite', github: 'Dev Feed',
-  tchat: 'Team Chat', ask: 'Ask Codex', import: 'Smart Import', settings: 'Settings', import: 'Smart Import',
+  tchat: 'Team Chat', ask: 'Ask Codex', import: 'Smart Import', settings: 'Settings',
 }
 
 // ── Main Component ─────────────────────────────────────────────────
@@ -107,9 +106,6 @@ export default function ProjectApp({ project, currentUser, initialData }: {
   const [importLoading, setImportLoading] = useState(false)
   const [importError, setImportError] = useState('')
   const [importStep, setImportStep] = useState(1)
-  const [importRawText, setImportRawText] = useState('')
-  const [importLoading, setImportLoading] = useState(false)
-  const [importError, setImportError] = useState('')
   const [loadKey, setLoadKey] = useState(0)
   const [chatInput, setChatInput] = useState('')
   const [askInput, setAskInput] = useState('')
@@ -311,7 +307,6 @@ export default function ProjectApp({ project, currentUser, initialData }: {
             { label: 'Investor', tabs: ['pitch'] },
             { label: 'Dev', tabs: ['github', 'tchat'] },
             { label: 'AI', tabs: ['ask', 'import', 'settings'] },
-            { label: 'Project', tabs: ['import'] },
           ].map(group => (
             <div key={group.label}>
               <div className="px-4 pt-3 pb-1 font-mono text-[9px] tracking-widest uppercase text-[var(--muted)]">{group.label}</div>
@@ -364,7 +359,6 @@ export default function ProjectApp({ project, currentUser, initialData }: {
               </button>
             )}
             <button className={btnAccent} onClick={() => setTab('import')}>📥 Import</button>
-            <button className={btnAccent} onClick={() => setTab('import')}>+ Import</button>
             {/* Notification bell */}
             <div className="relative">
               <button onClick={() => setShowNotifs(v => !v)} className="relative text-[var(--muted)] hover:text-[var(--text)] transition-colors p-1">
@@ -789,13 +783,7 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                     const text = await file.text()
                     texts.push(`--- ${file.name} ---\n${text}`)
                   }
-                  setImportRawText(p => p ? p + '
-
-' + texts.join('
-
-') : texts.join('
-
-'))
+                  setImportRawText(p => p ? p + '\n\n' + texts.join('\n\n') : texts.join('\n\n'))
                 }}
               >
                 <div className="text-3xl mb-2">📎</div>
@@ -819,13 +807,7 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                         texts.push(`[Could not read ${file.name}]`)
                       }
                     }
-                    setImportRawText(p => p ? p + '
-
-' + texts.join('
-
-') : texts.join('
-
-'))
+                    setImportRawText(p => p ? p + '\n\n' + texts.join('\n\n') : texts.join('\n\n'))
                   }}
                 />
               </div>
@@ -886,11 +868,7 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                 <div className="font-mono text-[9px] uppercase tracking-widest text-[var(--muted)] mb-2">Step 2 — Paste the JSON result from your AI</div>
                 <textarea
                   className={inputCls + ' resize-none min-h-[120px] font-mono text-xs'}
-                  placeholder={'{
-  "projectName": "...",
-  "genre": "shooter",
-  "gdd": {...}
-}'}
+                  placeholder={'{ "projectName": "...", "genre": "shooter", "gdd": {...} }'}
                   onChange={async (e) => {
                     const val = e.target.value.trim()
                     if (!val.startsWith('{')) return
@@ -959,116 +937,6 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                   }}
                 />
                 <div className="text-[10px] text-[var(--muted)] font-mono mt-1">Data imports automatically as you paste valid JSON</div>
-              </div>
-            </div>
-          )}
-
-
-          {/* ── SMART IMPORT ── */}
-          {tab === 'import' && (
-            <div className="animate-fade-in space-y-4">
-              <div className="text-xs font-mono text-[var(--muted)] bg-[var(--surface2)] border border-[var(--border)] rounded-lg px-3 py-2">
-                Paste or upload your GDD, budget, task list, investor notes. AI extracts and populates everything automatically.
-              </div>
-
-              <div
-                className="border-2 border-dashed border-[var(--border)] rounded-xl p-6 text-center cursor-pointer hover:border-[var(--accent)] transition-colors"
-                onClick={() => (document.getElementById('import-file') as HTMLInputElement)?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={async (e) => {
-                  e.preventDefault()
-                  const results: string[] = []
-                  for (const file of Array.from(e.dataTransfer.files)) {
-                    try { results.push('--- ' + file.name + ' ---\n' + await file.text()) } catch {}
-                  }
-                  setImportRawText(p => p ? p + '\n\n' + results.join('\n\n') : results.join('\n\n'))
-                }}
-              >
-                <div className="text-3xl mb-2">📎</div>
-                <div className="font-mono text-xs font-semibold mb-1">Attach Files</div>
-                <div className="text-[10px] text-[var(--muted)]">PDF, Word, TXT, Markdown — tap to browse or drag and drop</div>
-                <input id="import-file" type="file" multiple accept=".pdf,.doc,.docx,.txt,.md,.csv,image/*" className="hidden"
-                  onChange={async (e) => {
-                    const results: string[] = []
-                    for (const file of Array.from(e.target.files || [])) {
-                      try { results.push('--- ' + file.name + ' ---\n' + await file.text()) } catch {}
-                    }
-                    setImportRawText(p => p ? p + '\n\n' + results.join('\n\n') : results.join('\n\n'))
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-[var(--border)]"/>
-                <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--muted)]">or paste text</span>
-                <div className="flex-1 h-px bg-[var(--border)]"/>
-              </div>
-
-              <textarea
-                className={inputCls + ' resize-none min-h-[140px]'}
-                placeholder="Paste your GDD, task list, budget, investor notes here..."
-                value={importRawText}
-                onChange={e => setImportRawText(e.target.value)}
-              />
-
-              {importRawText.trim().length > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] text-[var(--accent)]">{importRawText.trim().split(' ').filter(Boolean).length} words loaded</span>
-                  <button className="font-mono text-[10px] text-[var(--red)]" onClick={() => setImportRawText('')}>Clear</button>
-                </div>
-              )}
-
-              {importError && <div className="text-red-400 text-xs font-mono bg-red-950/30 border border-red-800/30 rounded px-3 py-2">{importError}</div>}
-
-              <button
-                className={btnAccent + ' w-full py-3'}
-                disabled={importLoading || !importRawText.trim()}
-                onClick={() => {
-                  if (!importRawText.trim()) return
-                  const extractionPrompt = 'Extract structured data from the following game project documents and return ONLY a valid JSON object with these exact fields (omit fields not found): { "projectName": "string", "genre": "shooter|rpg|strategy|narrative|platformer|puzzle|simulation|horror|blank", "gdd": { "premise": "string", "coreMechanics": "string", "playerFantasy": "string", "setting": "string", "progression": "string", "market": "string", "tech": "string", "scope": "string" }, "decisions": [{"section": "string", "chose": "string", "rejected": "string"}], "tasks": [{"text": "string", "period": "daily|weekly|monthly|yearly", "priority": "high|medium|low"}], "milestones": [{"name": "string", "status": "planned|active|done", "progress": 0, "target_date": "string"}], "features": [{"name": "string", "note": "string", "status": "planned|active|done|cut"}], "risks": [{"name": "string", "severity": "high|medium|low", "note": "string", "mitigation": "string"}], "costs": [{"name": "string", "category": "string", "amount": 0, "cost_type": "monthly|one-time"}], "fundingTarget": 0 } Return ONLY the JSON. No explanation. DOCUMENTS: ' + importRawText
-                  openWithAI(extractionPrompt)
-                }}
-              >
-                {importLoading ? 'Processing...' : 'Extract with ' + (AI_PROVIDERS[aiProvider]?.name || 'AI') + ' ↗'}
-              </button>
-
-              <div className="text-[10px] text-[var(--muted)] font-mono text-center leading-relaxed">
-                Copies extraction prompt to clipboard and opens your AI. Paste it in, hit send, then paste the JSON result below.
-              </div>
-
-              <div className="border-t border-[var(--border)] pt-4 space-y-2">
-                <div className="font-mono text-[9px] uppercase tracking-widest text-[var(--muted)]">Step 2 — Paste JSON result from AI</div>
-                <textarea
-                  className={inputCls + ' resize-none min-h-[100px] font-mono text-xs'}
-                  placeholder='{ "projectName": "...", "genre": "shooter", "gdd": {...} }'
-                  onChange={async (e) => {
-                    const val = e.target.value.trim()
-                    if (!val.startsWith('{')) return
-                    try {
-                      const parsed = JSON.parse(val)
-                      if (parsed.projectName) { await db.updateProject(project.id, { name: parsed.projectName }); setProj(p => ({...p, name: parsed.projectName})) }
-                      if (parsed.genre) { await db.updateProject(project.id, { genre: parsed.genre }); setProj(p => ({...p, genre: parsed.genre})) }
-                      if (parsed.fundingTarget) await db.updateProject(project.id, { funding_target: parsed.fundingTarget })
-                      if (parsed.gdd) {
-                        for (const [key, val] of Object.entries(parsed.gdd)) {
-                          if (typeof val === 'string' && val.trim()) {
-                            const sec = allSections.find(s => s.key === key)
-                            if (sec) { await db.upsertGDDSection(project.id, key, sec.label, val as string, 0, false); setGddMap(p => ({...p, [key]: val as string})) }
-                          }
-                        }
-                      }
-                      if (parsed.decisions?.length) for (const d of parsed.decisions) { const dec = await db.addDecision(project.id, d.section || 'General', d.chose, d.rejected || '', currentUser.id); setDecisions(p => [dec, ...p]) }
-                      if (parsed.tasks?.length) for (const t of parsed.tasks) { const task = await db.addTask(project.id, t.text, t.period || 'daily', t.priority || 'medium'); setTasks(p => [...p, task]) }
-                      if (parsed.milestones?.length) for (const m of parsed.milestones) { const ms = await db.addMilestone(project.id, m.name, m.status || 'planned', m.progress || 0, m.target_date || ''); setMilestones(p => [...p, ms]) }
-                      if (parsed.features?.length) for (const f of parsed.features) { const feat = await db.addFeature(project.id, f.name, f.note || '', f.status || 'planned'); setFeatures(p => [...p, feat]) }
-                      if (parsed.risks?.length) for (const r of parsed.risks) { const risk = await db.addRisk(project.id, r.name, r.severity || 'medium', r.note || '', r.mitigation || ''); setRisks(p => [...p, risk]) }
-                      if (parsed.costs?.length) for (const c of parsed.costs) { const cost = await db.addCost(project.id, { name: c.name, category: c.category || 'Other', amount: c.amount || 0, cost_type: c.cost_type || 'monthly', note: '' }); setCosts(p => [...p, cost]) }
-                      setImportRawText('')
-                      setTab('gdd')
-                    } catch {}
-                  }}
-                />
-                <div className="text-[10px] text-[var(--muted)] font-mono">Data imports automatically when you paste valid JSON</div>
               </div>
             </div>
           )}
