@@ -49,14 +49,16 @@ const TABS = [
   { id: 'github',    label: 'Dev',      icon: '⌥'  },
   { id: 'tchat',     label: 'Chat',     icon: '💬' },
   { id: 'ask',       label: 'Ask',      icon: '✦'  },
+  { id: 'import',    label: 'Import',   icon: '📥' },
   { id: 'settings',  label: 'Setup',    icon: '⚙️' },
+  { id: 'import',    label: 'Import',   icon: '📥' },
 ]
 
 const FULL_LABELS: Record<string, string> = {
   gdd: 'Design Doc', decisions: 'Decision Log', clarity: 'Clarity Tools',
   budget: 'Budget', investors: 'Investors', assets: 'Asset Tracker',
   costs: 'Cost Tracker', pitch: 'Pitch Suite', github: 'Dev Feed',
-  tchat: 'Team Chat', ask: 'Ask Codex', settings: 'Settings',
+  tchat: 'Team Chat', ask: 'Ask Codex', import: 'Smart Import', settings: 'Settings', import: 'Smart Import',
 }
 
 // ── Main Component ─────────────────────────────────────────────────
@@ -101,6 +103,13 @@ export default function ProjectApp({ project, currentUser, initialData }: {
   const [aiModal, setAiModal] = useState<{ prompt: string } | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [showNotifs, setShowNotifs] = useState(false)
+  const [importRawText, setImportRawText] = useState('')
+  const [importLoading, setImportLoading] = useState(false)
+  const [importError, setImportError] = useState('')
+  const [importStep, setImportStep] = useState(1)
+  const [importRawText, setImportRawText] = useState('')
+  const [importLoading, setImportLoading] = useState(false)
+  const [importError, setImportError] = useState('')
   const [loadKey, setLoadKey] = useState(0)
   const [chatInput, setChatInput] = useState('')
   const [askInput, setAskInput] = useState('')
@@ -275,7 +284,7 @@ export default function ProjectApp({ project, currentUser, initialData }: {
 
   // ── Full render ───────────────────────────────────────────────────
   return (
-    <div className="flex h-screen h-dvh overflow-hidden bg-[var(--bg)] text-[var(--text)]">
+    <div className="flex h-screen overflow-hidden bg-[var(--bg)] text-[var(--text)]">
       {/* Loading bar */}
       <div key={loadKey} className="fixed top-0 left-0 right-0 h-0.5 bg-[var(--accent)] z-50 origin-left animate-[loadBar_0.6s_ease_forwards]" />
 
@@ -286,8 +295,9 @@ export default function ProjectApp({ project, currentUser, initialData }: {
           <div className="font-mono text-[10px] text-[var(--muted)] mt-0.5">game studio OS</div>
         </div>
 
-        {/* Project name */}
+        {/* Project name + back */}
         <div className="px-3 py-2.5 border-b border-[var(--border)]">
+          <button onClick={() => router.push('/dashboard')} className="font-mono text-[9px] text-[var(--muted)] hover:text-[var(--accent)] transition-colors mb-1 flex items-center gap-1">← All Projects</button>
           <div className="font-mono text-xs text-[var(--text)] truncate font-medium">{proj.name}</div>
           <div className="font-mono text-[9px] text-[var(--muted)] capitalize mt-0.5">{proj.genre}</div>
         </div>
@@ -300,7 +310,8 @@ export default function ProjectApp({ project, currentUser, initialData }: {
             { label: 'Finance', tabs: ['budget', 'investors', 'assets', 'costs'] },
             { label: 'Investor', tabs: ['pitch'] },
             { label: 'Dev', tabs: ['github', 'tchat'] },
-            { label: 'AI', tabs: ['ask', 'settings'] },
+            { label: 'AI', tabs: ['ask', 'import', 'settings'] },
+            { label: 'Project', tabs: ['import'] },
           ].map(group => (
             <div key={group.label}>
               <div className="px-4 pt-3 pb-1 font-mono text-[9px] tracking-widest uppercase text-[var(--muted)]">{group.label}</div>
@@ -340,7 +351,9 @@ export default function ProjectApp({ project, currentUser, initialData }: {
         <header className="h-[var(--top-h)] border-b border-[var(--border)] bg-[var(--surface)] flex items-center px-4 gap-3 flex-shrink-0">
           {openSection ? (
             <button onClick={() => setOpenSection(null)} className={btnGhost}>← Back</button>
-          ) : null}
+          ) : (
+            <button onClick={() => router.push('/dashboard')} className="text-[var(--muted)] font-mono text-[10px] hover:text-[var(--accent)] transition-colors md:hidden flex-shrink-0">⌂</button>
+          )}
           <div className="font-display font-semibold text-xs tracking-wider uppercase flex-1 truncate">
             {openSection ? allSections.find(s => s.key === openSection)?.label : FULL_LABELS[tab]}
           </div>
@@ -350,6 +363,8 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                 {template.icon} Template
               </button>
             )}
+            <button className={btnAccent} onClick={() => setTab('import')}>📥 Import</button>
+            <button className={btnAccent} onClick={() => setTab('import')}>+ Import</button>
             {/* Notification bell */}
             <div className="relative">
               <button onClick={() => setShowNotifs(v => !v)} className="relative text-[var(--muted)] hover:text-[var(--text)] transition-colors p-1">
@@ -748,6 +763,312 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage() } }}
                 />
                 <button className={btnAccent + ' self-end'} onClick={sendChatMessage} disabled={!chatInput.trim()}>↑</button>
+              </div>
+            </div>
+          )}
+
+
+          {/* ── SMART IMPORT ── */}
+          {tab === 'import' && (
+            <div className="animate-fade-in space-y-4">
+              <div className="text-xs font-mono text-[var(--muted)] bg-[var(--surface2)] border border-[var(--border)] rounded-lg px-3 py-2">
+                Paste or upload your existing GDD, budget, task list, or investor notes. AI will extract and populate your project automatically.
+              </div>
+
+              {/* File drop zone */}
+              <div
+                className="border-2 border-dashed border-[var(--border)] rounded-xl p-6 text-center cursor-pointer hover:border-[var(--accent)] transition-colors"
+                onClick={() => document.getElementById('import-file-input')?.click()}
+                onDragOver={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
+                onDragLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '' }}
+                onDrop={async (e) => {
+                  e.preventDefault()
+                  const files = e.dataTransfer.files
+                  const texts: string[] = []
+                  for (const file of Array.from(files)) {
+                    const text = await file.text()
+                    texts.push(`--- ${file.name} ---\n${text}`)
+                  }
+                  setImportRawText(p => p ? p + '
+
+' + texts.join('
+
+') : texts.join('
+
+'))
+                }}
+              >
+                <div className="text-3xl mb-2">📎</div>
+                <div className="font-mono text-xs font-semibold mb-1">Attach Files</div>
+                <div className="text-[10px] text-[var(--muted)]">PDF, Word, TXT, Markdown, CSV — tap to browse or drag & drop</div>
+                <input
+                  id="import-file-input"
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.txt,.md,.csv,.rtf,image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = e.target.files
+                    if (!files) return
+                    const texts: string[] = []
+                    for (const file of Array.from(files)) {
+                      try {
+                        const text = await file.text()
+                    texts.push(`--- ${file.name} ---\n${text}`)
+                      } catch {
+                        texts.push(`[Could not read ${file.name}]`)
+                      }
+                    }
+                    setImportRawText(p => p ? p + '
+
+' + texts.join('
+
+') : texts.join('
+
+'))
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-[var(--border)]" />
+                <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--muted)]">or paste text</span>
+                <div className="flex-1 h-px bg-[var(--border)]" />
+              </div>
+
+              <textarea
+                className={inputCls + ' resize-none min-h-[160px]'}
+                placeholder={"Paste your GDD, task list, budget, investor notes — anything. Mix formats, doesn't need to be tidy."}
+                value={importRawText}
+                onChange={e => setImportRawText(e.target.value)}
+              />
+
+              {importRawText && (
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] text-[var(--accent)]">{importRawText.trim().split(' ').filter(Boolean).length} words loaded</span>
+                  <button className="font-mono text-[10px] text-[var(--red)] hover:underline" onClick={() => setImportRawText('')}>Clear</button>
+                </div>
+              )}
+
+              {importError && (
+                <div className="bg-red-950/30 border border-red-800/40 rounded-lg px-3 py-2 text-red-400 text-xs font-mono">{importError}</div>
+              )}
+
+              <button
+                className={btnAccent + ' w-full py-3'}
+                disabled={importLoading || !importRawText.trim()}
+                onClick={async () => {
+                  if (!importRawText.trim()) return
+                  setImportLoading(true)
+                  setImportError('')
+                  try {
+                    const prompt = "You are a data extraction assistant for a game project management tool. Extract structured data from the following documents and return ONLY a valid JSON object with these fields (omit any field if not found):\n\n{\"projectName\": \"string\", \"genre\": \"shooter|rpg|strategy|narrative|platformer|puzzle|simulation|horror|blank\", \"gdd\": {\"premise\": \"string\", \"coreMechanics\": \"string\", \"playerFantasy\": \"string\", \"setting\": \"string\", \"progression\": \"string\", \"market\": \"string\", \"tech\": \"string\", \"scope\": \"string\"}, \"decisions\": [{\"section\": \"string\", \"chose\": \"string\", \"rejected\": \"string\"}], \"tasks\": [{\"text\": \"string\", \"period\": \"daily|weekly|monthly|yearly\", \"priority\": \"high|medium|low\"}], \"milestones\": [{\"name\": \"string\", \"status\": \"planned|active|done\", \"progress\": 0, \"target_date\": \"string\"}], \"features\": [{\"name\": \"string\", \"note\": \"string\", \"status\": \"planned|active|done|cut\"}], \"risks\": [{\"name\": \"string\", \"severity\": \"high|medium|low\", \"note\": \"string\", \"mitigation\": \"string\"}], \"costs\": [{\"name\": \"string\", \"category\": \"string\", \"amount\": 0, \"cost_type\": \"monthly|one-time\"}], \"fundingTarget\": 0}\n\nReturn ONLY the JSON object. No explanation, no markdown.\n\nDOCUMENTS:\n" + importRawText
+
+                    await navigator.clipboard.writeText(prompt).catch(() => {})
+                    setAiModal({ prompt })
+                    setImportLoading(false)
+                  } catch (e: any) {
+                    setImportError(e.message)
+                    setImportLoading(false)
+                  }
+                }}
+              >
+                {importLoading ? 'Processing...' : `Extract with ${AI_PROVIDERS[aiProvider]?.name || 'AI'} ↗`}
+              </button>
+
+              <div className="text-[10px] text-[var(--muted)] font-mono text-center leading-relaxed">
+                This copies a structured extraction prompt to your clipboard and opens your AI.<br/>
+                Paste it in, hit send, then copy the JSON result back here.
+              </div>
+
+              {/* JSON paste step */}
+              <div className="border-t border-[var(--border)] pt-4">
+                <div className="font-mono text-[9px] uppercase tracking-widest text-[var(--muted)] mb-2">Step 2 — Paste the JSON result from your AI</div>
+                <textarea
+                  className={inputCls + ' resize-none min-h-[120px] font-mono text-xs'}
+                  placeholder={'{
+  "projectName": "...",
+  "genre": "shooter",
+  "gdd": {...}
+}'}
+                  onChange={async (e) => {
+                    const val = e.target.value.trim()
+                    if (!val.startsWith('{')) return
+                    try {
+                      const parsed = JSON.parse(val)
+                      // Apply extracted data
+                      if (parsed.projectName) await db.updateProject(project.id, { name: parsed.projectName })
+                      if (parsed.genre) await db.updateProject(project.id, { genre: parsed.genre })
+                      if (parsed.fundingTarget) await db.updateProject(project.id, { funding_target: parsed.fundingTarget })
+                      if (parsed.gdd) {
+                        const secs = allSections
+                        for (const [key, val] of Object.entries(parsed.gdd)) {
+                          if (typeof val === 'string' && val.trim()) {
+                            const sec = secs.find(s => s.key === key)
+                            if (sec) {
+                              await db.upsertGDDSection(project.id, key, sec.label, val as string, 0, false)
+                              setGddMap(p => ({ ...p, [key]: val as string }))
+                            }
+                          }
+                        }
+                      }
+                      if (parsed.decisions?.length) {
+                        for (const d of parsed.decisions) {
+                          const dec = await db.addDecision(project.id, d.section || 'General', d.chose, d.rejected || '', currentUser.id)
+                          setDecisions(p => [dec, ...p])
+                        }
+                      }
+                      if (parsed.tasks?.length) {
+                        for (const t of parsed.tasks) {
+                          const task = await db.addTask(project.id, t.text, t.period || 'daily', t.priority || 'medium')
+                          setTasks(p => [...p, task])
+                        }
+                      }
+                      if (parsed.milestones?.length) {
+                        for (const m of parsed.milestones) {
+                          const ms = await db.addMilestone(project.id, m.name, m.status || 'planned', m.progress || 0, m.target_date || '')
+                          setMilestones(p => [...p, ms])
+                        }
+                      }
+                      if (parsed.features?.length) {
+                        for (const f of parsed.features) {
+                          const feat = await db.addFeature(project.id, f.name, f.note || '', f.status || 'planned')
+                          setFeatures(p => [...p, feat])
+                        }
+                      }
+                      if (parsed.risks?.length) {
+                        for (const r of parsed.risks) {
+                          const risk = await db.addRisk(project.id, r.name, r.severity || 'medium', r.note || '', r.mitigation || '')
+                          setRisks(p => [...p, risk])
+                        }
+                      }
+                      if (parsed.costs?.length) {
+                        for (const c of parsed.costs) {
+                          const cost = await db.addCost(project.id, { name: c.name, category: c.category || 'Other', amount: c.amount || 0, cost_type: c.cost_type || 'monthly', note: '' })
+                          setCosts(p => [...p, cost])
+                        }
+                      }
+                      setImportRawText('')
+                      setTab('gdd')
+                      setProj(p => ({
+                        ...p,
+                        ...(parsed.projectName ? { name: parsed.projectName } : {}),
+                        ...(parsed.genre ? { genre: parsed.genre } : {}),
+                      }))
+                    } catch {}
+                  }}
+                />
+                <div className="text-[10px] text-[var(--muted)] font-mono mt-1">Data imports automatically as you paste valid JSON</div>
+              </div>
+            </div>
+          )}
+
+
+          {/* ── SMART IMPORT ── */}
+          {tab === 'import' && (
+            <div className="animate-fade-in space-y-4">
+              <div className="text-xs font-mono text-[var(--muted)] bg-[var(--surface2)] border border-[var(--border)] rounded-lg px-3 py-2">
+                Paste or upload your GDD, budget, task list, investor notes. AI extracts and populates everything automatically.
+              </div>
+
+              <div
+                className="border-2 border-dashed border-[var(--border)] rounded-xl p-6 text-center cursor-pointer hover:border-[var(--accent)] transition-colors"
+                onClick={() => (document.getElementById('import-file') as HTMLInputElement)?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={async (e) => {
+                  e.preventDefault()
+                  const results: string[] = []
+                  for (const file of Array.from(e.dataTransfer.files)) {
+                    try { results.push('--- ' + file.name + ' ---\n' + await file.text()) } catch {}
+                  }
+                  setImportRawText(p => p ? p + '\n\n' + results.join('\n\n') : results.join('\n\n'))
+                }}
+              >
+                <div className="text-3xl mb-2">📎</div>
+                <div className="font-mono text-xs font-semibold mb-1">Attach Files</div>
+                <div className="text-[10px] text-[var(--muted)]">PDF, Word, TXT, Markdown — tap to browse or drag and drop</div>
+                <input id="import-file" type="file" multiple accept=".pdf,.doc,.docx,.txt,.md,.csv,image/*" className="hidden"
+                  onChange={async (e) => {
+                    const results: string[] = []
+                    for (const file of Array.from(e.target.files || [])) {
+                      try { results.push('--- ' + file.name + ' ---\n' + await file.text()) } catch {}
+                    }
+                    setImportRawText(p => p ? p + '\n\n' + results.join('\n\n') : results.join('\n\n'))
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-[var(--border)]"/>
+                <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--muted)]">or paste text</span>
+                <div className="flex-1 h-px bg-[var(--border)]"/>
+              </div>
+
+              <textarea
+                className={inputCls + ' resize-none min-h-[140px]'}
+                placeholder="Paste your GDD, task list, budget, investor notes here..."
+                value={importRawText}
+                onChange={e => setImportRawText(e.target.value)}
+              />
+
+              {importRawText.trim().length > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] text-[var(--accent)]">{importRawText.trim().split(' ').filter(Boolean).length} words loaded</span>
+                  <button className="font-mono text-[10px] text-[var(--red)]" onClick={() => setImportRawText('')}>Clear</button>
+                </div>
+              )}
+
+              {importError && <div className="text-red-400 text-xs font-mono bg-red-950/30 border border-red-800/30 rounded px-3 py-2">{importError}</div>}
+
+              <button
+                className={btnAccent + ' w-full py-3'}
+                disabled={importLoading || !importRawText.trim()}
+                onClick={() => {
+                  if (!importRawText.trim()) return
+                  const extractionPrompt = 'Extract structured data from the following game project documents and return ONLY a valid JSON object with these exact fields (omit fields not found): { "projectName": "string", "genre": "shooter|rpg|strategy|narrative|platformer|puzzle|simulation|horror|blank", "gdd": { "premise": "string", "coreMechanics": "string", "playerFantasy": "string", "setting": "string", "progression": "string", "market": "string", "tech": "string", "scope": "string" }, "decisions": [{"section": "string", "chose": "string", "rejected": "string"}], "tasks": [{"text": "string", "period": "daily|weekly|monthly|yearly", "priority": "high|medium|low"}], "milestones": [{"name": "string", "status": "planned|active|done", "progress": 0, "target_date": "string"}], "features": [{"name": "string", "note": "string", "status": "planned|active|done|cut"}], "risks": [{"name": "string", "severity": "high|medium|low", "note": "string", "mitigation": "string"}], "costs": [{"name": "string", "category": "string", "amount": 0, "cost_type": "monthly|one-time"}], "fundingTarget": 0 } Return ONLY the JSON. No explanation. DOCUMENTS: ' + importRawText
+                  openWithAI(extractionPrompt)
+                }}
+              >
+                {importLoading ? 'Processing...' : 'Extract with ' + (AI_PROVIDERS[aiProvider]?.name || 'AI') + ' ↗'}
+              </button>
+
+              <div className="text-[10px] text-[var(--muted)] font-mono text-center leading-relaxed">
+                Copies extraction prompt to clipboard and opens your AI. Paste it in, hit send, then paste the JSON result below.
+              </div>
+
+              <div className="border-t border-[var(--border)] pt-4 space-y-2">
+                <div className="font-mono text-[9px] uppercase tracking-widest text-[var(--muted)]">Step 2 — Paste JSON result from AI</div>
+                <textarea
+                  className={inputCls + ' resize-none min-h-[100px] font-mono text-xs'}
+                  placeholder='{ "projectName": "...", "genre": "shooter", "gdd": {...} }'
+                  onChange={async (e) => {
+                    const val = e.target.value.trim()
+                    if (!val.startsWith('{')) return
+                    try {
+                      const parsed = JSON.parse(val)
+                      if (parsed.projectName) { await db.updateProject(project.id, { name: parsed.projectName }); setProj(p => ({...p, name: parsed.projectName})) }
+                      if (parsed.genre) { await db.updateProject(project.id, { genre: parsed.genre }); setProj(p => ({...p, genre: parsed.genre})) }
+                      if (parsed.fundingTarget) await db.updateProject(project.id, { funding_target: parsed.fundingTarget })
+                      if (parsed.gdd) {
+                        for (const [key, val] of Object.entries(parsed.gdd)) {
+                          if (typeof val === 'string' && val.trim()) {
+                            const sec = allSections.find(s => s.key === key)
+                            if (sec) { await db.upsertGDDSection(project.id, key, sec.label, val as string, 0, false); setGddMap(p => ({...p, [key]: val as string})) }
+                          }
+                        }
+                      }
+                      if (parsed.decisions?.length) for (const d of parsed.decisions) { const dec = await db.addDecision(project.id, d.section || 'General', d.chose, d.rejected || '', currentUser.id); setDecisions(p => [dec, ...p]) }
+                      if (parsed.tasks?.length) for (const t of parsed.tasks) { const task = await db.addTask(project.id, t.text, t.period || 'daily', t.priority || 'medium'); setTasks(p => [...p, task]) }
+                      if (parsed.milestones?.length) for (const m of parsed.milestones) { const ms = await db.addMilestone(project.id, m.name, m.status || 'planned', m.progress || 0, m.target_date || ''); setMilestones(p => [...p, ms]) }
+                      if (parsed.features?.length) for (const f of parsed.features) { const feat = await db.addFeature(project.id, f.name, f.note || '', f.status || 'planned'); setFeatures(p => [...p, feat]) }
+                      if (parsed.risks?.length) for (const r of parsed.risks) { const risk = await db.addRisk(project.id, r.name, r.severity || 'medium', r.note || '', r.mitigation || ''); setRisks(p => [...p, risk]) }
+                      if (parsed.costs?.length) for (const c of parsed.costs) { const cost = await db.addCost(project.id, { name: c.name, category: c.category || 'Other', amount: c.amount || 0, cost_type: c.cost_type || 'monthly', note: '' }); setCosts(p => [...p, cost]) }
+                      setImportRawText('')
+                      setTab('gdd')
+                    } catch {}
+                  }}
+                />
+                <div className="text-[10px] text-[var(--muted)] font-mono">Data imports automatically when you paste valid JSON</div>
               </div>
             </div>
           )}
