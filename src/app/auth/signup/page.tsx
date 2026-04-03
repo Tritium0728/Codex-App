@@ -56,7 +56,7 @@ export default function SignupPage() {
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-8">
       <h1 className="font-display font-bold text-xl mb-1">Create your studio</h1>
-      <p className="text-[var(--muted)] text-sm mb-6">Free forever. No credit card needed.</p>
+      <p className="text-[var(--muted)] text-sm mb-6">Create your studio account. No credit card needed.</p>
 
       <form onSubmit={handleSignup} className="space-y-4">
         <div>
@@ -110,7 +110,7 @@ export default function SignupPage() {
       </form>
 
       <p className="text-center text-[var(--muted)] text-xs leading-relaxed mt-4">
-        By signing up you agree to our terms. No spam, ever.
+        By signing up you agree to our terms.
       </p>
 
       <p className="text-center text-[var(--muted)] text-sm mt-4">

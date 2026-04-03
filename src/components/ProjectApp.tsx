@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import * as db from '@/lib/db'
 import type {
   Project, Profile, GDDSection, Decision, Task, Milestone,
-  Feature, FeatureStatus, Risk, Asset, AssetPriority, Cost, Purchase, Funding, Investor, InvestorStatus, Message, ProjectMember
+  Feature, Risk, Asset, Cost, Purchase, Funding, Investor, Message, ProjectMember
 } from '@/types'
 import { GENRE_TEMPLATES } from '@/lib/genres'
 
@@ -396,7 +396,7 @@ export default function ProjectApp({ project, currentUser, initialData }: {
         </header>
 
         {/* Content */}
-        <div ref={contentRef} className="flex-1 overflow-y-auto p-4 md:p-5">
+        <div ref={contentRef} className="flex-1 overflow-y-auto p-4 md:p-5 pb-24 md:pb-8">
 
           {/* ── GDD ── */}
           {tab === 'gdd' && (
@@ -781,9 +781,12 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                   const files = e.dataTransfer.files
                   const texts: string[] = []
                   for (const file of Array.from(files)) {
-                    const text = await file.text()
-                    texts.push(`--- ${file.name} ---
-${text}`)
+                    try {
+                      const fd = new FormData(); fd.append('file', file)
+                      const res = await fetch('/api/parse-file', { method: 'POST', body: fd })
+                      const data = await res.json()
+                      texts.push('--- ' + file.name + ' ---\n' + (data.text || '[Could not read ' + file.name + ']'))
+                    } catch { texts.push('[Could not read ' + file.name + ']') }
                   }
                   setImportRawText(p => p ? p + '\n\n' + texts.join('\n\n') : texts.join('\n\n'))
                 }}
@@ -803,12 +806,11 @@ ${text}`)
                     const texts: string[] = []
                     for (const file of Array.from(files)) {
                       try {
-                        const text = await file.text()
-                        texts.push(`--- ${file.name} ---
-${text}`)
-                      } catch {
-                        texts.push(`[Could not read ${file.name}]`)
-                      }
+                        const fd = new FormData(); fd.append('file', file)
+                        const res = await fetch('/api/parse-file', { method: 'POST', body: fd })
+                        const data = await res.json()
+                        texts.push('--- ' + file.name + ' ---\n' + (data.text || '[Could not read ' + file.name + ']'))
+                      } catch { texts.push('[Could not read ' + file.name + ']') }
                     }
                     setImportRawText(p => p ? p + '\n\n' + texts.join('\n\n') : texts.join('\n\n'))
                   }}
@@ -840,115 +842,55 @@ ${text}`)
               )}
 
               <button
-                className={btnAccent + ' w-full py-3'}
+                className={btnAccent + ' w-full py-3 text-sm'}
                 disabled={importLoading || !importRawText.trim()}
                 onClick={async () => {
                   if (!importRawText.trim()) return
                   setImportLoading(true)
                   setImportError('')
                   try {
-                    const res = await fetch('/api/extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: importRawText }) })
+                    const res = await fetch('/api/extract', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ text: importRawText })
+                    })
                     const json = await res.json()
                     if (json.error) throw new Error(json.error)
                     const parsed = json.data
                     if (parsed.projectName) { await db.updateProject(project.id, { name: parsed.projectName }); setProj(p => ({...p, name: parsed.projectName})) }
                     if (parsed.genre) { await db.updateProject(project.id, { genre: parsed.genre }); setProj(p => ({...p, genre: parsed.genre})) }
-                    if (parsed.gdd) { for (const [key, val] of Object.entries(parsed.gdd)) { if (typeof val === 'string' && val.trim()) { const sec = allSections.find(s => s.key === key); if (sec) { await db.upsertGDDSection(project.id, key, sec.label, val, 0, false); setGddMap(p => ({...p, [key]: val})) } } } }
-                    if (parsed.decisions?.length) for (const d of parsed.decisions) { const dec = await db.addDecision(project.id, d.section||'General', d.chose, d.rejected||'', currentUser.id); setDecisions(p => [dec,...p]) }
-                    if (parsed.tasks?.length) for (const t of parsed.tasks) { const task = await db.addTask(project.id, t.text, t.period||'daily', t.priority||'medium'); setTasks(p => [...p,task]) }
-                    if (parsed.milestones?.length) for (const m of parsed.milestones) { const ms = await db.addMilestone(project.id, m.name, m.status||'planned', m.progress||0, m.target_date||''); setMilestones(p => [...p,ms]) }
-                    if (parsed.features?.length) for (const f of parsed.features) { const feat = await db.addFeature(project.id, f.name, f.note||'', f.status||'planned'); setFeatures(p => [...p,feat]) }
-                    if (parsed.risks?.length) for (const r of parsed.risks) { const risk = await db.addRisk(project.id, r.name, r.severity||'medium', r.note||'', r.mitigation||''); setRisks(p => [...p,risk]) }
-                    if (parsed.costs?.length) for (const c of parsed.costs) { const cost = await db.addCost(project.id, {name:c.name, category:c.category||'Other', amount:c.amount||0, cost_type:c.cost_type||'monthly', note:''}); setCosts(p => [...p,cost]) }
-                    setImportRawText(''); setImportLoading(false); setTab('gdd')
-                  } catch (e) {setImportError(e.message)
+                    if (parsed.fundingTarget) await db.updateProject(project.id, { funding_target: parsed.fundingTarget })
+                    if (parsed.gdd) {
+                      for (const [key, val] of Object.entries(parsed.gdd)) {
+                        if (typeof val === 'string' && (val as string).trim()) {
+                          const sec = allSections.find(s => s.key === key)
+                          if (sec) { await db.upsertGDDSection(project.id, key, sec.label, val as string, 0, false); setGddMap(p => ({...p, [key]: val as string})) }
+                        }
+                      }
+                    }
+                    if (parsed.decisions?.length) for (const d of parsed.decisions) { const dec = await db.addDecision(project.id, d.section || 'General', d.chose, d.rejected || '', currentUser.id); setDecisions(p => [dec, ...p]) }
+                    if (parsed.tasks?.length) for (const t of parsed.tasks) { const task = await db.addTask(project.id, t.text, t.period || 'daily', t.priority || 'medium'); setTasks(p => [...p, task]) }
+                    if (parsed.milestones?.length) for (const m of parsed.milestones) { const ms = await db.addMilestone(project.id, m.name, m.status || 'planned', m.progress || 0, m.target_date || ''); setMilestones(p => [...p, ms]) }
+                    if (parsed.features?.length) for (const f of parsed.features) { const feat = await db.addFeature(project.id, f.name, f.note || '', f.status || 'planned'); setFeatures(p => [...p, feat]) }
+                    if (parsed.risks?.length) for (const r of parsed.risks) { const risk = await db.addRisk(project.id, r.name, r.severity || 'medium', r.note || '', r.mitigation || ''); setRisks(p => [...p, risk]) }
+                    if (parsed.costs?.length) for (const c of parsed.costs) { const cost = await db.addCost(project.id, { name: c.name, category: c.category || 'Other', amount: c.amount || 0, cost_type: c.cost_type || 'monthly', note: '' }); setCosts(p => [...p, cost]) }
+                    setImportRawText('')
+                    setImportLoading(false)
+                    setTab('gdd')
+                  } catch (e: any) {
+                    setImportError(e.message)
                     setImportLoading(false)
                   }
                 }}
               >
-                {importLoading ? 'Processing...' : `Extract with ${AI_PROVIDERS[aiProvider]?.name || 'AI'} ↗`}
+                {importLoading ? '✦ Extracting & importing...' : '✦ Extract & Import with AI'}
               </button>
 
-              <div className="text-[10px] text-[var(--muted)] font-mono text-center leading-relaxed">
-                This copies a structured extraction prompt to your clipboard and opens your AI.<br/>
-                Paste it in, hit send, then copy the JSON result back here.
-              </div>
-
-              {/* JSON paste step */}
-              <div className="border-t border-[var(--border)] pt-4">
-                <div className="font-mono text-[9px] uppercase tracking-widest text-[var(--muted)] mb-2">Step 2 — Paste the JSON result from your AI</div>
-                <textarea
-                  className={inputCls + ' resize-none min-h-[120px] font-mono text-xs'}
-                  placeholder={'{ "projectName": "...", "genre": "shooter", "gdd": {...} }'}
-                  onChange={async (e) => {
-                    const val = e.target.value.trim()
-                    if (!val.startsWith('{')) return
-                    try {
-                      const parsed = JSON.parse(val)
-                      // Apply extracted data
-                      if (parsed.projectName) await db.updateProject(project.id, { name: parsed.projectName })
-                      if (parsed.genre) await db.updateProject(project.id, { genre: parsed.genre })
-                      if (parsed.fundingTarget) await db.updateProject(project.id, { funding_target: parsed.fundingTarget })
-                      if (parsed.gdd) {
-                        const secs = allSections
-                        for (const [key, val] of Object.entries(parsed.gdd)) {
-                          if (typeof val === 'string' && val.trim()) {
-                            const sec = secs.find(s => s.key === key)
-                            if (sec) {
-                              await db.upsertGDDSection(project.id, key, sec.label, val as string, 0, false)
-                              setGddMap(p => ({ ...p, [key]: val as string }))
-                            }
-                          }
-                        }
-                      }
-                      if (parsed.decisions?.length) {
-                        for (const d of parsed.decisions) {
-                          const dec = await db.addDecision(project.id, d.section || 'General', d.chose, d.rejected || '', currentUser.id)
-                          setDecisions(p => [dec, ...p])
-                        }
-                      }
-                      if (parsed.tasks?.length) {
-                        for (const t of parsed.tasks) {
-                          const task = await db.addTask(project.id, t.text, t.period || 'daily', t.priority || 'medium')
-                          setTasks(p => [...p, task])
-                        }
-                      }
-                      if (parsed.milestones?.length) {
-                        for (const m of parsed.milestones) {
-                          const ms = await db.addMilestone(project.id, m.name, m.status || 'planned', m.progress || 0, m.target_date || '')
-                          setMilestones(p => [...p, ms])
-                        }
-                      }
-                      if (parsed.features?.length) {
-                        for (const f of parsed.features) {
-                          const feat = await db.addFeature(project.id, f.name, f.note || '', f.status || 'planned')
-                          setFeatures(p => [...p, feat])
-                        }
-                      }
-                      if (parsed.risks?.length) {
-                        for (const r of parsed.risks) {
-                          const risk = await db.addRisk(project.id, r.name, r.severity || 'medium', r.note || '', r.mitigation || '')
-                          setRisks(p => [...p, risk])
-                        }
-                      }
-                      if (parsed.costs?.length) {
-                        for (const c of parsed.costs) {
-                          const cost = await db.addCost(project.id, { name: c.name, category: c.category || 'Other', amount: c.amount || 0, cost_type: c.cost_type || 'monthly', note: '' })
-                          setCosts(p => [...p, cost])
-                        }
-                      }
-                      setImportRawText('')
-                      setTab('gdd')
-                      setProj(p => ({
-                        ...p,
-                        ...(parsed.projectName ? { name: parsed.projectName } : {}),
-                        ...(parsed.genre ? { genre: parsed.genre } : {}),
-                      }))
-                    } catch {}
-                  }}
-                />
-                <div className="text-[10px] text-[var(--muted)] font-mono mt-1">Data imports automatically as you paste valid JSON</div>
-              </div>
+              {importLoading && (
+                <div className="text-center font-mono text-[10px] text-[var(--accent)] animate-pulse">
+                  Reading your documents and populating all sections... takes 10-20 seconds
+                </div>
+              )}
             </div>
           )}
 
@@ -1263,7 +1205,7 @@ function ClarityTabImpl({ tasks, milestones, features, risks, members, goalTab, 
           {features.map((f:any) => (
             <div key={f.id} className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3">
               <div className="flex-1 min-w-0"><div className="text-sm font-medium">{f.name}</div>{f.note&&<div className="text-xs text-[var(--muted)] mt-0.5">{f.note}</div>}</div>
-              <select className="bg-transparent border border-[var(--border)] rounded text-[10px] font-mono text-[var(--muted)] px-1 py-0.5 outline-none" value={f.status} onChange={e=>{db.updateFeature(f.id,{status:e.target.value as FeatureStatus});onFeatureUpdate(f.id,{status:e.target.value as FeatureStatus})}}>
+              <select className="bg-transparent border border-[var(--border)] rounded text-[10px] font-mono text-[var(--muted)] px-1 py-0.5 outline-none" value={f.status} onChange={e=>{db.updateFeature(f.id,{status:e.target.value as any});onFeatureUpdate(f.id,{status:e.target.value as any})}}>
                 {['planned','active','done','cut'].map(s=><option key={s}>{s}</option>)}
               </select>
               <button className={btnDanger} onClick={()=>{db.deleteFeature(f.id);onFeatureDelete(f.id)}}>✕</button>
@@ -1396,7 +1338,7 @@ function InvestorsTabImpl({ investors, fundingTarget, fundingRound, projectId, f
         <div className="flex gap-2"><input className={inputCls+' flex-1'} placeholder="Investor / Fund name" value={newInv.name} onChange={e=>setNewInv(p=>({...p,name:e.target.value}))} /><input className={inputCls} type="number" placeholder="$" value={newInv.amount} onChange={e=>setNewInv(p=>({...p,amount:e.target.value}))} style={{width:90}} /></div>
         <div className="flex gap-2"><input className={inputCls+' flex-1'} type="date" value={newInv.investor_date} onChange={e=>setNewInv(p=>({...p,investor_date:e.target.value}))} /><select className={selectCls} value={newInv.status} onChange={e=>setNewInv(p=>({...p,status:e.target.value}))}>{['prospect','verbal','committed','closed'].map(s=><option key={s}>{s}</option>)}</select></div>
         <textarea className={inputCls+' resize-none'} rows={2} placeholder="Notes..." value={newInv.note} onChange={e=>setNewInv(p=>({...p,note:e.target.value}))} />
-        <div className="flex gap-2 justify-end"><button className={btnGhost} onClick={()=>setShow(false)}>Cancel</button><button className={btnAccent} onClick={async()=>{if(!newInv.name||!newInv.amount)return;const i=await db.addInvestor(projectId,{...newInv,amount:Number(newInv.amount),status:newInv.status as InvestorStatus});onAdd(i);setNewInv({name:'',amount:'',investor_date:new Date().toISOString().split('T')[0],status:'verbal',note:''});setShow(false)}}>Add</button></div>
+        <div className="flex gap-2 justify-end"><button className={btnGhost} onClick={()=>setShow(false)}>Cancel</button><button className={btnAccent} onClick={async()=>{if(!newInv.name||!newInv.amount)return;const i=await db.addInvestor(projectId,{name:newInv.name,amount:Number(newInv.amount),investor_date:newInv.investor_date,status:newInv.status as any,note:newInv.note});onAdd(i);setNewInv({name:'',amount:'',investor_date:new Date().toISOString().split('T')[0],status:'verbal',note:''});setShow(false)}}>Add</button></div>
       </div>}
       <div className="space-y-2">
         {investors.length===0 && <div className="text-center py-8 text-[var(--muted)] text-sm"><div className="text-2xl mb-2">🏦</div>No investors yet.</div>}
@@ -1406,7 +1348,7 @@ function InvestorsTabImpl({ investors, fundingTarget, fundingRound, projectId, f
               <div><div className="text-sm font-semibold">{inv.name}</div><div className="font-mono text-[9px] text-[var(--muted)] mt-0.5">{inv.investor_date}</div></div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="font-mono font-bold text-base text-[var(--green)]">{fmtCurrency(inv.amount)}</div>
-                <select className="bg-transparent border border-[var(--border)] rounded text-[10px] font-mono text-[var(--muted)] px-1 py-0.5 outline-none" value={inv.status} onChange={e=>{db.updateInvestor(inv.id,{status:e.target.value as InvestorStatus});onUpdate(inv.id,{status:e.target.value as InvestorStatus})}}>
+                <select className="bg-transparent border border-[var(--border)] rounded text-[10px] font-mono text-[var(--muted)] px-1 py-0.5 outline-none" value={inv.status} onChange={e=>{db.updateInvestor(inv.id,{status:e.target.value as any});onUpdate(inv.id,{status:e.target.value as any})}}>
                   {['prospect','verbal','committed','closed'].map(s=><option key={s}>{s}</option>)}
                 </select>
                 <button className={btnDanger} onClick={()=>{db.deleteInvestor(inv.id);onDelete(inv.id)}}>✕</button>
@@ -1436,7 +1378,7 @@ function AssetsTabImpl({ assets, projectId, lockedAssets, btnAccent, btnGhost, b
         <div className="flex gap-2"><input className={inputCls+' flex-1'} placeholder="Asset name" value={newA.name} onChange={e=>setNewA(p=>({...p,name:e.target.value}))} /><input className={inputCls} type="number" placeholder="$" value={newA.price} onChange={e=>setNewA(p=>({...p,price:e.target.value}))} style={{width:80}} /></div>
         <div className="flex gap-2"><input className={inputCls+' flex-1'} placeholder="Store (Fab, Unity...)" value={newA.store} onChange={e=>setNewA(p=>({...p,store:e.target.value}))} /><select className={selectCls} value={newA.priority} onChange={e=>setNewA(p=>({...p,priority:e.target.value}))}>{['locked','considering','someday'].map(s=><option key={s}>{s}</option>)}</select></div>
         <input className={inputCls} placeholder="URL (optional)" value={newA.url} onChange={e=>setNewA(p=>({...p,url:e.target.value}))} />
-        <div className="flex gap-2 justify-end"><button className={btnGhost} onClick={()=>setShow(false)}>Cancel</button><button className={btnAccent} onClick={async()=>{if(!newA.name)return;const a=await db.addAsset(projectId,{...newA,price:Number(newA.price)||0,priority:newA.priority as AssetPriority});onAdd(a);setNewA({name:'',store:'',price:'',priority:'considering',url:''});setShow(false)}}>Add</button></div>
+        <div className="flex gap-2 justify-end"><button className={btnGhost} onClick={()=>setShow(false)}>Cancel</button><button className={btnAccent} onClick={async()=>{if(!newA.name)return;const a=await db.addAsset(projectId,{name:newA.name,store:newA.store,price:Number(newA.price)||0,priority:newA.priority as any,url:newA.url});onAdd(a);setNewA({name:'',store:'',price:'',priority:'considering',url:''});setShow(false)}}>Add</button></div>
       </div>}
       {(['locked','considering','someday'] as const).map(priority=>{
         const group = assets.filter((a:any)=>a.priority===priority)
