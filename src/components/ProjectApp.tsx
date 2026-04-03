@@ -269,7 +269,7 @@ export default function ProjectApp({ project, currentUser, initialData }: {
       considering: 'bg-[rgba(251,191,36,0.12)] text-yellow-400',
       someday: 'bg-[rgba(85,85,95,0.15)] text-[var(--muted)]',
     }
-    return <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-mono text-[9px] tracking-wider uppercase ${colors[s] ?? colors.planned}`}>{s}</span>
+    return (<span className={`inline-flex items-center px-2 py-0.5 rounded-full font-mono text-[9px] tracking-wider uppercase ${colors[s] ?? colors.planned}`}>{s}</span>)
   }
 
   // ── Shared input/button classes ───────────────────────────────────
