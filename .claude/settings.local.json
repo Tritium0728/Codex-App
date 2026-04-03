@@ -3,7 +3,12 @@
     "allow": [
       "Bash(npx next:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx -p typescript tsc --noEmit --pretty)"
+      "Bash(npx -p typescript tsc --noEmit --pretty)",
+      "Bash(npx:*)",
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)"
     ]
   }
 }
