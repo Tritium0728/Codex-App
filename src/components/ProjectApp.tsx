@@ -847,40 +847,21 @@ ${text}`)
                   setImportLoading(true)
                   setImportError('')
                   try {
-                    const prompt = `You are a data extraction assistant for a game project management tool. Extract structured data from the following documents and return ONLY a valid JSON object with these fields (omit any field if not found):
-
-{
-  "projectName": "string",
-  "genre": "shooter|rpg|strategy|narrative|platformer|puzzle|simulation|horror|blank",
-  "gdd": {
-    "premise": "string",
-    "coreMechanics": "string",
-    "playerFantasy": "string",
-    "setting": "string",
-    "progression": "string",
-    "market": "string",
-    "tech": "string",
-    "scope": "string"
-  },
-  "decisions": [{"section": "string", "chose": "string", "rejected": "string"}],
-  "tasks": [{"text": "string", "period": "daily|weekly|monthly|yearly", "priority": "high|medium|low"}],
-  "milestones": [{"name": "string", "status": "planned|active|done", "progress": 0, "target_date": "string"}],
-  "features": [{"name": "string", "note": "string", "status": "planned|active|done|cut"}],
-  "risks": [{"name": "string", "severity": "high|medium|low", "note": "string", "mitigation": "string"}],
-  "costs": [{"name": "string", "category": "string", "amount": 0, "cost_type": "monthly|one-time"}],
-  "fundingTarget": 0
-}
-
-Return ONLY the JSON object. No explanation, no markdown.
-
-DOCUMENTS:
-${importRawText}`
-
-                    await navigator.clipboard.writeText(prompt).catch(() => {})
-                    setAiModal({ prompt })
-                    setImportLoading(false)
-                  } catch (e: any) {
-                    setImportError(e.message)
+                    const res = await fetch('/api/extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: importRawText }) })
+                    const json = await res.json()
+                    if (json.error) throw new Error(json.error)
+                    const parsed = json.data
+                    if (parsed.projectName) { await db.updateProject(project.id, { name: parsed.projectName }); setProj(p => ({...p, name: parsed.projectName})) }
+                    if (parsed.genre) { await db.updateProject(project.id, { genre: parsed.genre }); setProj(p => ({...p, genre: parsed.genre})) }
+                    if (parsed.gdd) { for (const [key, val] of Object.entries(parsed.gdd)) { if (typeof val === 'string' && val.trim()) { const sec = allSections.find(s => s.key === key); if (sec) { await db.upsertGDDSection(project.id, key, sec.label, val, 0, false); setGddMap(p => ({...p, [key]: val})) } } } }
+                    if (parsed.decisions?.length) for (const d of parsed.decisions) { const dec = await db.addDecision(project.id, d.section||'General', d.chose, d.rejected||'', currentUser.id); setDecisions(p => [dec,...p]) }
+                    if (parsed.tasks?.length) for (const t of parsed.tasks) { const task = await db.addTask(project.id, t.text, t.period||'daily', t.priority||'medium'); setTasks(p => [...p,task]) }
+                    if (parsed.milestones?.length) for (const m of parsed.milestones) { const ms = await db.addMilestone(project.id, m.name, m.status||'planned', m.progress||0, m.target_date||''); setMilestones(p => [...p,ms]) }
+                    if (parsed.features?.length) for (const f of parsed.features) { const feat = await db.addFeature(project.id, f.name, f.note||'', f.status||'planned'); setFeatures(p => [...p,feat]) }
+                    if (parsed.risks?.length) for (const r of parsed.risks) { const risk = await db.addRisk(project.id, r.name, r.severity||'medium', r.note||'', r.mitigation||''); setRisks(p => [...p,risk]) }
+                    if (parsed.costs?.length) for (const c of parsed.costs) { const cost = await db.addCost(project.id, {name:c.name, category:c.category||'Other', amount:c.amount||0, cost_type:c.cost_type||'monthly', note:''}); setCosts(p => [...p,cost]) }
+                    setImportRawText(''); setImportLoading(false); setTab('gdd')
+                  } catch (e) {setImportError(e.message)
                     setImportLoading(false)
                   }
                 }}
