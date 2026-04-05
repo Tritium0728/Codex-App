@@ -1,6 +1,30 @@
+'use client'
 import Link from 'next/link'
+import { useState } from 'react'
 
 export default function HomePage() {
+  const [loading, setLoading] = useState<string | null>(null)
+
+  const checkout = async (tier: string) => {
+    setLoading(tier)
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier })
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else if (data.error) {
+        // Not logged in - go to signup
+        window.location.href = '/auth/signup'
+      }
+    } catch {
+      window.location.href = '/auth/signup'
+    }
+    setLoading(null)
+  }
+
   return (
     <main className="min-h-screen bg-[#09090b] text-[#e8e8ec] overflow-x-hidden">
 
@@ -118,7 +142,7 @@ export default function HomePage() {
                 <li key={f} className="flex items-start gap-2 text-sm opacity-30"><span className="font-mono text-xs mt-0.5">—</span>{f}</li>
               ))}
             </ul>
-            <Link href="/auth/signup" className="block text-center border border-[#222228] text-[#e8e8ec] font-mono text-sm py-3 rounded-lg hover:border-[#55555f] hover:bg-[#18181d] transition-all">Get Started</Link>
+            <Link href="/auth/signup" className="block text-center border border-[#222228] text-[#e8e8ec] font-mono text-sm py-3 rounded-lg hover:border-[#55555f] hover:bg-[#18181d] transition-all">Get Started Free</Link>
           </div>
 
           <div className="bg-[#111114] border-2 border-[#e8ff47] rounded-xl p-8 relative hover:-translate-y-1 transition-transform" style={{background:'linear-gradient(135deg,#111114 0%,rgba(232,255,71,0.03) 100%)'}}>
@@ -132,7 +156,7 @@ export default function HomePage() {
                 <li key={f} className="flex items-start gap-2 text-sm text-[#55555f]"><span className="text-[#e8ff47] font-mono text-xs mt-0.5">✓</span>{f}</li>
               ))}
             </ul>
-            <Link href="/auth/signup" className="block text-center bg-[#e8ff47] text-black font-mono font-semibold text-sm py-3 rounded-lg hover:opacity-85 transition-opacity">Start Studio Trial</Link>
+            <button onClick={() => checkout('studio')} disabled={loading === 'studio'} className="w-full text-center bg-[#e8ff47] text-black font-mono font-semibold text-sm py-3 rounded-lg hover:opacity-85 transition-opacity disabled:opacity-50">{loading === 'studio' ? 'Loading...' : 'Start 7-Day Free Trial'}</button>
           </div>
 
           <div className="bg-[#111114] border border-[#222228] rounded-xl p-8 hover:-translate-y-1 transition-transform">
@@ -145,11 +169,11 @@ export default function HomePage() {
                 <li key={f} className="flex items-start gap-2 text-sm text-[#55555f]"><span className="text-[#e8ff47] font-mono text-xs mt-0.5">✓</span>{f}</li>
               ))}
             </ul>
-            <Link href="/auth/signup" className="block text-center border border-[#222228] text-[#e8e8ec] font-mono text-sm py-3 rounded-lg hover:border-[#55555f] hover:bg-[#18181d] transition-all">Contact Sales</Link>
+            <a href="mailto:hello@thecodexstudio.co" className="block text-center border border-[#222228] text-[#e8e8ec] font-mono text-sm py-3 rounded-lg hover:border-[#55555f] hover:bg-[#18181d] transition-all">Contact Sales</a>
           </div>
         </div>
 
-        <p className="text-center text-[#55555f] font-mono text-xs mt-8">All plans include a 14-day trial. No credit card required to start.</p>
+        <p className="text-center text-[#55555f] font-mono text-xs mt-8">7-day free trial. Cancel anytime. No charge until trial ends.</p>
       </section>
 
       {/* CTA */}
