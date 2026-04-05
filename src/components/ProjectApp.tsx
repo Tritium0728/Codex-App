@@ -104,6 +104,9 @@ export default function ProjectApp({ project, currentUser, initialData }: {
   const [showNotifs, setShowNotifs] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [userApiKey, setUserApiKey] = useState('')
+  const [apiKeySaved, setApiKeySaved] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
   const [importStep, setImportStep] = useState(1)
   const [importRawText, setImportRawText] = useState('')
   const [importLoading, setImportLoading] = useState(false)
@@ -148,6 +151,12 @@ export default function ProjectApp({ project, currentUser, initialData }: {
     contentRef.current?.scrollTo({ top: 0, behavior: 'instant' as any })
     setLoadKey(k => k + 1)
   }, [tab])
+
+  // Load user API key from profile
+  useEffect(() => {
+    createClient().from('profiles').select('anthropic_key').eq('id', currentUser.id).single()
+      .then(({ data }) => { if (data?.anthropic_key) setUserApiKey(data.anthropic_key) })
+  }, [currentUser.id])
 
   // ── Derived data ──────────────────────────────────────────────────
   const template = GENRE_TEMPLATES[proj.genre] ?? GENRE_TEMPLATES.blank
@@ -861,6 +870,12 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                 <div className="bg-red-950/30 border border-red-800/40 rounded-lg px-3 py-2 text-red-400 text-xs font-mono">{importError}</div>
               )}
 
+              {!userApiKey && (
+                <div className="bg-[rgba(232,255,71,0.06)] border border-[rgba(232,255,71,0.2)] rounded-lg px-3 py-2 text-xs font-mono text-[var(--muted)]">
+                  💡 Add your Anthropic API key in Settings to use AI extraction
+                </div>
+              )}
+
               <button
                 className={btnAccent + ' w-full py-3 text-sm'}
                 disabled={importLoading || !importRawText.trim()}
@@ -872,7 +887,7 @@ export default function ProjectApp({ project, currentUser, initialData }: {
                     const res = await fetch('/api/extract', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ text: importRawText })
+                      body: JSON.stringify({ text: importRawText, apiKey: userApiKey || undefined })
                     })
                     const json = await res.json()
                     if (json.error) throw new Error(json.error)
@@ -948,6 +963,45 @@ export default function ProjectApp({ project, currentUser, initialData }: {
           {/* ── SETTINGS ── */}
           {tab === 'settings' && (
             <div className="animate-fade-in space-y-6">
+              <div>
+                <div className={sectionTitle + ' mb-3'}>Your API Key</div>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+                  <div className="text-xs text-[var(--muted)] leading-relaxed">
+                    Add your Anthropic API key to use AI extraction. Your key is stored securely and only used for your account.
+                    Get a key at <span className="text-[var(--accent3)]">console.anthropic.com</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      className={inputCls + ' flex-1 font-mono text-xs'}
+                      placeholder="sk-ant-..."
+                      value={userApiKey}
+                      onChange={e => setUserApiKey(e.target.value)}
+                    />
+                    <button className={btnGhost} onClick={() => setShowApiKey(v => !v)}>
+                      {showApiKey ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className={btnAccent} onClick={async () => {
+                      await createClient().from('profiles').update({ anthropic_key: userApiKey }).eq('id', currentUser.id)
+                      setApiKeySaved(true)
+                      setTimeout(() => setApiKeySaved(false), 2000)
+                    }}>
+                      {apiKeySaved ? '✓ Saved!' : 'Save Key'}
+                    </button>
+                    {userApiKey && (
+                      <button className={btnGhost} onClick={async () => {
+                        setUserApiKey('')
+                        await createClient().from('profiles').update({ anthropic_key: null }).eq('id', currentUser.id)
+                      }}>Remove</button>
+                    )}
+                  </div>
+                  {userApiKey && <div className="text-[10px] text-[var(--green)] font-mono">✓ API key configured — AI extraction enabled</div>}
+                  {!userApiKey && <div className="text-[10px] text-[var(--muted)] font-mono">No key set — AI extraction will use Codex shared credits (limited)</div>}
+                </div>
+              </div>
+
               <div>
                 <div className={sectionTitle + ' mb-3'}>AI Provider</div>
                 <div className="grid grid-cols-2 gap-2">

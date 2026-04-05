@@ -5,17 +5,20 @@ export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   try {
-    const { text } = await request.json()
+    const { text, apiKey } = await request.json()
     if (!text?.trim()) return NextResponse.json({ error: 'No text provided' }, { status: 400 })
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
+    // Use user's key if provided, fall back to env var
+    const key = apiKey || process.env.ANTHROPIC_API_KEY
+    if (!key) return NextResponse.json({ 
+      error: 'No API key configured. Add your Anthropic API key in Settings to use AI extraction.' 
+    }, { status: 400 })
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
+        'x-api-key': key,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
@@ -25,14 +28,14 @@ export async function POST(request: NextRequest) {
           role: 'user',
           content: `You are a data extraction assistant for a game project management tool called Codex. Extract structured data from the following game project documents.
 
-Return ONLY a valid JSON object with these exact fields (omit any field if not found in the documents):
+Return ONLY a valid JSON object with these exact fields (omit any field if not found):
 
 {
   "projectName": "string",
   "genre": "shooter|rpg|strategy|narrative|platformer|puzzle|simulation|horror|blank",
   "gdd": {
     "premise": "string",
-    "coreMechanics": "string", 
+    "coreMechanics": "string",
     "playerFantasy": "string",
     "setting": "string",
     "progression": "string",
@@ -49,7 +52,7 @@ Return ONLY a valid JSON object with these exact fields (omit any field if not f
   "fundingTarget": 0
 }
 
-Return ONLY the JSON object. No explanation, no markdown, no code blocks. Just the raw JSON.
+Return ONLY the JSON object. No explanation, no markdown, no code blocks.
 
 DOCUMENTS:
 ${text}`
@@ -58,17 +61,14 @@ ${text}`
     })
 
     if (!response.ok) {
-      const err = await response.text()
-      return NextResponse.json({ error: `Claude API error: ${err}` }, { status: 500 })
+      const err = await response.json().catch(() => ({ error: { message: response.statusText } }))
+      const msg = err?.error?.message || response.statusText
+      return NextResponse.json({ error: `AI error: ${msg}` }, { status: 500 })
     }
 
     const data = await response.json()
     const content = data.content?.[0]?.text || ''
-
-    // Strip any markdown code blocks if Claude added them
     const clean = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-
-    // Validate it's JSON
     const parsed = JSON.parse(clean)
     return NextResponse.json({ data: parsed })
 
