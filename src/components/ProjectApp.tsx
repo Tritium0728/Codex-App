@@ -102,6 +102,8 @@ export default function ProjectApp({ project, currentUser, initialData }: {
   const [aiModal, setAiModal] = useState<{ prompt: string } | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [showNotifs, setShowNotifs] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [importStep, setImportStep] = useState(1)
   const [importRawText, setImportRawText] = useState('')
   const [importLoading, setImportLoading] = useState(false)
@@ -335,9 +337,11 @@ export default function ProjectApp({ project, currentUser, initialData }: {
             <div className="font-mono text-xs text-[var(--text)] truncate">{currentUser.name}</div>
             <div className="font-mono text-[9px] text-[var(--muted)] capitalize">{currentUser.role}</div>
           </div>
-          <form action="/auth/signout" method="POST">
-            <button className="font-mono text-[9px] text-[var(--muted)] hover:text-[var(--text)]">out</button>
-          </form>
+          <button className="font-mono text-[9px] text-[var(--muted)] hover:text-[var(--text)]" onClick={async () => {
+            const { createClient } = await import('@/lib/supabase/client')
+            await createClient().auth.signOut()
+            router.push('/auth/login')
+          }}>Sign out</button>
         </div>
       </aside>
 
@@ -396,7 +400,7 @@ export default function ProjectApp({ project, currentUser, initialData }: {
         </header>
 
         {/* Content */}
-        <div ref={contentRef} className="flex-1 overflow-y-auto p-4 md:p-5 pb-24 md:pb-8">
+        <div ref={contentRef} className="flex-1 overflow-y-auto p-4 md:p-5 pb-20 md:pb-6">
 
           {/* ── GDD ── */}
           {tab === 'gdd' && (
@@ -593,6 +597,14 @@ export default function ProjectApp({ project, currentUser, initialData }: {
           {/* ── PITCH ── */}
           {tab === 'pitch' && (
             <div className="animate-fade-in space-y-3">
+              <div className="bg-[rgba(232,255,71,0.06)] border border-[rgba(232,255,71,0.2)] rounded-xl p-4 flex items-center gap-3">
+                <span className="text-2xl">🚀</span>
+                <div className="flex-1">
+                  <div className="font-display font-semibold text-xs tracking-wider uppercase text-[var(--accent)] mb-0.5">Studio Feature</div>
+                  <div className="text-xs text-[var(--muted)]">Pitch suite is available on Studio ($12/mo) and Investor Ready ($29/mo) plans.</div>
+                </div>
+                <a href="/#pricing" target="_blank" className="bg-[var(--accent)] text-black font-mono font-semibold text-[10px] px-3 py-1.5 rounded-md whitespace-nowrap">Upgrade</a>
+              </div>
               <div className="text-xs font-mono text-[var(--muted)] bg-[var(--surface2)] border border-[var(--border)] rounded-lg px-3 py-2">
                 ⚠ Each button copies your project prompt and opens your AI. Paste and send for instant results.
               </div>
@@ -698,6 +710,14 @@ export default function ProjectApp({ project, currentUser, initialData }: {
           {/* ── TEAM CHAT ── */}
           {tab === 'tchat' && (
             <div className="flex flex-col h-full min-h-0" style={{ height: 'calc(100dvh - var(--top-h) - 72px)' }}>
+              <div className="bg-[rgba(91,140,255,0.08)] border border-[rgba(91,140,255,0.2)] rounded-xl p-3 mb-3 flex items-center gap-3 flex-shrink-0">
+                <span className="text-xl">💬</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-[9px] uppercase tracking-wider text-[var(--accent3)] mb-0.5">Studio Feature</div>
+                  <div className="text-[10px] text-[var(--muted)]">Team chat is available on Studio & above.</div>
+                </div>
+                <a href="/#pricing" target="_blank" className="bg-[var(--accent)] text-black font-mono font-semibold text-[10px] px-3 py-1.5 rounded-md whitespace-nowrap flex-shrink-0">Upgrade</a>
+              </div>
               <div className="flex items-center justify-between mb-3 flex-shrink-0">
                 <div className="font-mono text-[10px] text-[var(--muted)]">{members.length} members · {messages.length} messages</div>
                 <div className="flex gap-1">
@@ -976,6 +996,31 @@ export default function ProjectApp({ project, currentUser, initialData }: {
               </div>
 
               <div>
+                <div className={sectionTitle + ' mb-3'}>Danger Zone</div>
+                <div className="bg-[var(--surface)] border border-[rgba(248,113,113,0.2)] rounded-xl p-5">
+                  <div className="text-sm font-medium mb-1">Delete Project</div>
+                  <div className="text-xs text-[var(--muted)] mb-4">This permanently deletes all GDD, decisions, tasks, milestones, features, risks, assets, costs, and messages. This cannot be undone.</div>
+                  {!confirmDelete ? (
+                    <button className="bg-[rgba(248,113,113,0.1)] text-[var(--red)] border border-[rgba(248,113,113,0.3)] font-mono text-xs px-4 py-2 rounded-lg hover:bg-[rgba(248,113,113,0.2)] transition-colors"
+                      onClick={() => setConfirmDelete(true)}>
+                      Delete Project
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-xs text-[var(--red)] font-mono">Are you sure? This cannot be undone.</div>
+                      <div className="flex gap-2">
+                        <button className="bg-[var(--red)] text-white font-mono text-xs px-4 py-2 rounded-lg" onClick={async () => {
+                          await import('@/lib/db').then(db => db.deleteProject(project.id))
+                          router.push('/dashboard')
+                        }}>Yes, delete everything</button>
+                        <button className={btnGhost} onClick={() => setConfirmDelete(false)}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
                 <div className={sectionTitle + ' mb-3'}>Invite Team</div>
                 <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 text-center">
                   <div className="text-sm text-[var(--muted)] mb-4">Generate a link to invite teammates to this project.</div>
@@ -993,16 +1038,69 @@ export default function ProjectApp({ project, currentUser, initialData }: {
         </div>
       </div>
 
-      {/* MOBILE BOTTOM TABS */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-[var(--tab-h)] bg-[var(--surface)] border-t border-[var(--border)] z-40 flex overflow-x-auto">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-1 border-none transition-colors ${tab === t.id ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>
-            <span className="text-lg leading-none">{t.icon}</span>
-            <span className="font-mono text-[8px] tracking-tight uppercase truncate max-w-full px-0.5">{t.label}</span>
-          </button>
-        ))}
+      {/* MOBILE BOTTOM HANDLE + DRAWER */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-[var(--surface)] border-t border-[var(--border)] z-40 flex items-center justify-between px-5">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">{TABS.find(t => t.id === tab)?.icon}</span>
+          <span className="font-display font-semibold text-[10px] tracking-wider uppercase">{FULL_LABELS[tab]}</span>
+        </div>
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="flex items-center gap-2 bg-[var(--surface2)] border border-[var(--border)] rounded-full px-4 py-2 active:bg-[rgba(232,255,71,0.06)] transition-colors"
+        >
+          <span className="flex gap-1"><span className="w-1 h-1 rounded-full bg-[var(--muted)]"/><span className="w-1 h-1 rounded-full bg-[var(--muted)]"/><span className="w-1 h-1 rounded-full bg-[var(--muted)]"/></span>
+          <span className="font-mono text-[10px] text-[var(--muted)]">Menu</span>
+        </button>
       </div>
+
+      {/* DRAWER */}
+      {drawerOpen && (
+        <div className="md:hidden fixed inset-0 z-50" onClick={() => setDrawerOpen(false)}>
+          <div className="absolute inset-0 bg-black/65 backdrop-blur-sm animate-fade-in" />
+          <div className="absolute bottom-0 left-0 right-0 bg-[var(--surface)] border-t border-[var(--border)] rounded-t-2xl animate-slide-up max-h-[80dvh] overflow-y-auto pb-8"
+            onClick={e => e.stopPropagation()}>
+            <div className="w-9 h-1 bg-[var(--muted2)] rounded-full mx-auto mt-3 mb-4" />
+            {[
+              { label: 'Design', tabs: ['gdd', 'decisions'] },
+              { label: 'Clarity', tabs: ['clarity'] },
+              { label: 'Finance', tabs: ['budget', 'investors', 'assets', 'costs'] },
+              { label: 'Investor', tabs: ['pitch'] },
+              { label: 'Dev', tabs: ['github', 'tchat'] },
+              { label: 'AI', tabs: ['ask', 'import'] },
+              { label: 'Settings', tabs: ['settings'] },
+            ].map(group => (
+              <div key={group.label}>
+                <div className="px-5 pt-3 pb-1 font-mono text-[9px] tracking-widest uppercase text-[var(--muted)]">{group.label}</div>
+                <div className="grid grid-cols-4 gap-1 px-3">
+                  {group.tabs.map(t => {
+                    const tabInfo = TABS.find(x => x.id === t)
+                    return (
+                      <button key={t} onClick={() => { setTab(t); setDrawerOpen(false) }}
+                        className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-colors ${tab === t ? 'bg-[rgba(232,255,71,0.08)]' : 'hover:bg-[var(--surface2)]'}`}>
+                        <span className="text-2xl">{tabInfo?.icon}</span>
+                        <span className={`font-mono text-[9px] uppercase tracking-wide ${tab === t ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>{tabInfo?.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="mx-4 mt-4 pt-4 border-t border-[var(--border)] flex gap-2">
+              <button onClick={() => { router.push('/dashboard'); setDrawerOpen(false) }}
+                className="flex-1 border border-[var(--border)] text-[var(--muted)] font-mono text-xs py-2.5 rounded-lg hover:border-[var(--muted2)]">
+                ← All Projects
+              </button>
+              <button onClick={async () => {
+                const { createClient } = await import('@/lib/supabase/client')
+                await createClient().auth.signOut()
+                router.push('/auth/login')
+              }} className="flex-1 border border-[var(--border)] text-[var(--muted)] font-mono text-xs py-2.5 rounded-lg hover:border-[var(--muted2)]">
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI LAUNCH MODAL */}
       {aiModal && (

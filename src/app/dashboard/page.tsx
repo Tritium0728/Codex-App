@@ -35,7 +35,7 @@ export default async function DashboardPage() {
         <div className="flex items-center gap-3">
           <span className="text-[var(--muted)] font-mono text-xs">{profile?.name}</span>
           <form action="/auth/signout" method="POST">
-            <button className="text-[var(--muted)] font-mono text-xs hover:text-[var(--text)] transition-colors">
+            <button type="submit" className="text-[var(--muted)] font-mono text-xs hover:text-[var(--text)] transition-colors">
               Sign out
             </button>
           </form>
